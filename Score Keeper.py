@@ -69,11 +69,12 @@ def time_in_ms(time_string):
 
     separators = []
 
-    # Finds non-number symbols in the string.
+    # Finds non-numeric symbols in the string.
     for symbol_id in range(len(time_string)):
         if time_string[symbol_id] not in ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9'):
             separators.append(symbol_id)
 
+    # Error if too many separators (a sign of user wrote something other than time).
     if len(separators) != 2:
         return False
 
@@ -94,6 +95,7 @@ Converts milliseconds integer to «mm:ss.mss» string.
 
 def time_in_m(time):
 
+    # Just gets the whole number of everything & adds zeros if not enough symbols.
     m = str(time // 60000)
     m = ('0' + m if len(m) == 1 else m)
     time %= 60000
@@ -119,17 +121,18 @@ Constructs a leaderboard from runners dictionary.
 
 def get_leaderboard(ctx, runners):
 
-    runners_amount_string = len(str(len(runners)))
+    runners_amount_string_length = len(str(len(runners)))  # used every loop so it's better to just get it once.
     runners_data_string = '```fix\n'
-    position = 1
+    position = 1  # just a count.
 
     for runner in runners:
-        rank = str(position)
-
-        rank = ' ' * (runners_amount_string - len(rank) + 1) + \
-               rank + \
+        # Adds white spaces in the beginning depending on the number of runners &
+        # adds endings to make numbers ordinal.
+        rank = ' ' * (runners_amount_string_length - len(rank) + 1) + \
+               str(position) + \
                {1: 'st', 2: 'nd', 3: 'rd'}.get(4 if 10 <= position % 100 < 20 else position % 10, 'th')
 
+        # Adds the runner info to the leaderboard string.
         runners_data_string += rank + ' | ' + \
                                time_in_m(runners[runner]) + ' | ' + \
                                ctx.guild.get_member(int(runner)).name + '\n'
@@ -143,7 +146,7 @@ def get_leaderboard(ctx, runners):
 |=== Error Alert ===|
 
 Description:
-Sends error message to the channel and deletes it after some time.
+Sends error message to the channel & deletes it after some time.
 """
 
 
@@ -202,9 +205,11 @@ Gives WR Holder role to the #1 runner.
 
 async def give_wr_role(ctx, runners):
 
+    # Gets the user in the 1st place & the role of WR holder.
     wr_holder = ctx.guild.get_member(int(list(runners.keys())[0]))
     wr_role = discord.utils.get(ctx.guild.roles, name='WR Holder')
 
+    # Deletes every other member in this role & gives it to the winner.
     for member in wr_role.members:
         await member.remove_roles(wr_role)
 
@@ -226,6 +231,7 @@ async def on_ready():
 
     print(f'\nLogged on as {dbot.user}!\n')
 
+    # Gets random activity for bots status from the list.
     with open('Activities.txt', 'r') as activities_file:
         activities_list = activities_file.read().split('\n')
 
@@ -258,7 +264,7 @@ async def on_ready():
     |================|
 
 Description:
-Creates new leaderboard message.
+Creates brand new leaderboard message.
 """
 
 
@@ -274,6 +280,7 @@ async def _lb(ctx):
     with open('Private Data/Guilds Data.json', 'r') as ids_storage:
         ids = json.load(ids_storage)
 
+    # Message to ensure if the user really wants to create new leaderboard.
     if str(ctx.guild.id) in ids:
         agreement_message = await ctx.send('Are you sure you want to create a new leaderboard?\n'
                                            'Your previous leaderboard will be completely removed.')
@@ -311,15 +318,18 @@ async def _lb(ctx):
                                            'Creating a new one right now!')
             await error_alert(ctx, error_message)
 
+    # Creates empty leaderboard message text.
     message = await ctx.send('```fix\n'
                              'LEADERBOARD\n'
                              '```')
 
+    # Adds leaderboard info into the dictionary.
     ids[str(ctx.guild.id)] = {'channel_id': message.channel.id, 'message_id': message.id, 'runners': {}}
 
     with open('Private Data/Guilds Data.json', 'w') as ids_storage:
         json.dump(ids, ids_storage, indent=4)
 
+    # Clears all the previous members of WR Holder role.
     wr_role = discord.utils.get(ctx.guild.roles, name='WR Holder')
 
     for member in wr_role.members:
@@ -347,6 +357,7 @@ async def _add(ctx, *, args):
 
     mentions = ctx.message.mentions
 
+    # Check if there is a mention of a user in the message & if there is only one.
     if len(mentions) != 1:
         error_message = await ctx.send('There should be one mention.')
         await error_alert(ctx, error_message)
@@ -358,6 +369,7 @@ async def _add(ctx, *, args):
 
     args = args.split()
 
+    # Checks if enough arguments were given.
     if len(args) != 2:
         error_message = await ctx.send('There should be only two arguments.')
         await error_alert(ctx, error_message)
@@ -367,21 +379,25 @@ async def _add(ctx, *, args):
     else:
         add_time = args[-1]
 
+    # Checks if time was given in the allowed format.
     try:
         add_time = time_in_ms(add_time)
 
     except Exception:
-        error_message = await ctx.send('Time should be in **M:S:MS** format, where «**:**» is any separator.')
+        error_message = await ctx.send('Time should be in **M:S:MS** format.\n'
+                                       '«**:**» is any separator but the white space.')
         await error_alert(ctx, error_message)
 
         return
 
     if not add_time:
-        error_message = await ctx.send('Time should be in **M:S:MS** format, where «**:**» is any separator.')
+        error_message = await ctx.send('Time should be in **M:S:MS** format.\n'
+                                       '«**:**» is any separator but the white space.')
         await error_alert(ctx, error_message)
 
         return
 
+    # Loads ids from the storage & checks if guild is in there.
     with open('Private Data/Guilds Data.json', 'r') as ids_storage:
         ids = json.load(ids_storage)
 
@@ -396,14 +412,15 @@ async def _add(ctx, *, args):
 
     leaderboard_message = await get_leaderboard_message(ctx)
 
+    # Adds the new runner to the dictionary & sorts it by value.
     runners[str(add_user.id)] = add_time
-
     runners = {k: v for k, v in sorted(runners.items(), key=lambda item: item[1])}
 
     leaderboard = get_leaderboard(ctx, runners)
 
     await give_wr_role(ctx, runners)
 
+    # Loads ids back into the storage & edits the message.
     ids[str(ctx.guild.id)]['runners'] = runners
 
     with open('Private Data/Guilds Data.json', 'w') as ids_storage:
@@ -432,6 +449,7 @@ async def _remove(ctx, *, args):
 
     mentions = ctx.message.mentions
 
+    # Check if there is a mention of a user in the message & if there is only one.
     if len(mentions) != 1:
         error_message = await ctx.send('There should be one mention.')
         await error_alert(ctx, error_message)
@@ -443,12 +461,14 @@ async def _remove(ctx, *, args):
 
     args = args.split()
 
+    # Checks if enough arguments were given.
     if len(args) != 1:
         error_message = await ctx.send('There should be only one argument.')
         await error_alert(ctx, error_message)
 
         return
 
+    # Loads ids from the storage & checks if guild is in there.
     with open('Private Data/Guilds Data.json', 'r') as ids_storage:
         ids = json.load(ids_storage)
 
@@ -463,20 +483,24 @@ async def _remove(ctx, *, args):
 
     leaderboard_message = await get_leaderboard_message(ctx)
 
+    # Deletes the runner from the dictionary
     del runners[str(remove_user.id)]
 
     if not runners:
+        # Creates empty leaderboard message text.
         leaderboard = '```fix\n' \
                       'LEADERBOARD\n' \
                       '```'
 
     else:
+        # Sorts dictionary by value.
         runners = {k: v for k, v in sorted(runners.items(), key=lambda item: item[1])}
 
         leaderboard = get_leaderboard(ctx, runners)
 
         await give_wr_role(ctx, runners)
 
+    # Loads ids back into the storage & edits the message.
     ids[str(ctx.guild.id)]['runners'] = runners
 
     with open('Private Data/Guilds Data.json', 'w') as ids_storage:
@@ -515,6 +539,7 @@ async def _clear(ctx, amount=0):
           f' on <{ctx.channel.id}> channel in «{ctx.guild.id}» guild.')
 
 
+# Gets the token & sends an error if not exist.
 with open('Private Data/Token.txt', 'r') as token_file:
     token = token_file.read()
 

@@ -1,7 +1,7 @@
 # Score Keeper Discord Bot
 Discord bot to create &amp; update leaderboards.
 
-For now, it is really basic, because I don't consider it to get popular. To be honest, it probably never will be.
+For now, it is really basic, because I don't consider it to get popular.
 
 ## Commands
 `.lb` creates brand new leaderboard message.  
